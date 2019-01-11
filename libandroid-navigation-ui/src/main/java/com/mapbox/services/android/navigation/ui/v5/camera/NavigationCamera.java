@@ -28,7 +28,9 @@ import com.mapbox.services.android.navigation.v5.utils.MathUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import timber.log.Timber;
 
@@ -47,6 +49,7 @@ import static com.mapbox.services.android.navigation.v5.navigation.NavigationCon
 public class NavigationCamera implements LifecycleObserver {
 
   private static final int ONE_POINT = 1;
+  private final Set<TrackingModeTransitionListener> trackingModeTransitionListeners = new HashSet<>();
 
   private MapboxMap mapboxMap;
   private LocationComponent locationComponent;
@@ -167,6 +170,7 @@ public class NavigationCamera implements LifecycleObserver {
    */
   public void updateCameraTrackingMode(@TrackingMode int trackingMode) {
     trackingCameraMode = trackingMode;
+    updateTrackingModeListenersWith(trackingMode);
     setCameraMode();
   }
 
@@ -247,6 +251,28 @@ public class NavigationCamera implements LifecycleObserver {
     this.navigation = navigation;
     navigation.setCameraEngine(new DynamicCamera(mapboxMap));
     navigation.addProgressChangeListener(progressChangeListener);
+  }
+
+  /**
+   * Adds given tracking mode transition listener for receiving notification of camera
+   * mode changes.
+   *
+   * @param listener to be added
+   * @return true if added, false if already added
+   */
+  public boolean addTrackingModeTransitionListener(TrackingModeTransitionListener listener) {
+    return trackingModeTransitionListeners.add(listener);
+  }
+
+  /**
+   * Removes given tracking mode transition listener for receiving notification of camera
+   * mode changes.
+   *
+   * @param listener to be removed
+   * @return true if removed, false if listener didn't exist
+   */
+  public boolean removeTrackingModeTransitionListener(TrackingModeTransitionListener listener) {
+    return trackingModeTransitionListeners.remove(listener);
   }
 
   private void initializeWith(MapboxNavigation navigation) {
@@ -347,7 +373,13 @@ public class NavigationCamera implements LifecycleObserver {
     }
 
     if (mode != locationComponent.getCameraMode()) {
-      locationComponent.setCameraMode(mode);
+      locationComponent.setCameraMode(mode, new NavigationCameraTransitionListener(this, trackingCameraMode));
+    }
+  }
+
+  void updateTrackingModeListenersWith(int trackingMode) {
+    for (TrackingModeTransitionListener listener : trackingModeTransitionListeners) {
+      listener.onFinishedTransitionTo(trackingMode);
     }
   }
 
